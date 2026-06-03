@@ -1,0 +1,4 @@
+{
+  "ignoreDependencies": ["gray-matter", "@earendil-works/pi-coding-agent"],
+  "ignoreFiles": ["src/skill-selector.ts", "toggle-skills.ts"]
+}
