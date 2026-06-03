@@ -9,7 +9,7 @@
  * /skill:name commands.
  *
  * This extension modifies SKILL.md files on disk. Changes require a /reload
- * to take effect — the extension auto-reloads after saving changes.
+ * to take effect.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -168,7 +168,7 @@ async function handleToggleCommand(
         "Mechanism: toggles disable-model-invocation in SKILL.md frontmatter.",
         "  When true, the skill is excluded from the system prompt.",
         "  Users can still invoke hidden skills via /skill:name commands.",
-        "  Changes require /reload to take effect (auto-reloaded after TUI save).",
+        "  Changes require /reload to take effect.",
       ].join("\n"),
       "info",
     );
@@ -244,16 +244,10 @@ async function showToggleSelector(
   if (disabled > 0) parts.push(`${disabled} disabled`);
   const summary = parts.join(", ");
 
-  // Auto-reload to apply changes
   ctx.ui.notify(
-    `Skills updated: ${summary}. Reloading to apply...`,
+    `Skills updated: ${summary}. Run /reload to apply.`,
     "info",
   );
-
-  // Small delay so the user sees the notification before reload
-  setTimeout(() => {
-    ctx.reload();
-  }, 500);
 }
 
 function findSkillByName(skills: ReadonlyArray<ToggleSkill>, name: string): ToggleSkill | undefined {

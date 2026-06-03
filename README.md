@@ -51,7 +51,7 @@ When a skill has `disable-model-invocation: true`, pi excludes it from the syste
 | `Enter`  | Toggle selected skill                   |
 | `Ctrl+A` | Disable all (filtered if search active) |
 | `Ctrl+D` | Enable all (filtered if search active)  |
-| `Ctrl+S` | Save changes and reload pi              |
+| `Ctrl+S` | Save changes (run /reload to apply)       |
 | `Esc`    | Cancel (discard changes)                |
 | `Ctrl+C` | Clear search, or cancel if empty        |
 | ↑/↓      | Navigate the list                       |
@@ -99,7 +99,7 @@ Session starts
 /toggle-skills (interactive):
   → Opens TUI selector listing all skills
   → Changes collected in-memory (no disk writes until Ctrl+S)
-  → Ctrl+S: writes changed SKILL.md files, calls ctx.reload()
+  → Ctrl+S: writes changed SKILL.md files, notifies user to /reload
   → Esc: discards changes, no files modified
 
 /toggle-skills disable/enable:
@@ -149,7 +149,7 @@ Package skills, settings skills, and `--skill` paths are not currently scanned (
 
 | Approach                    | Pros                                                                                                      | Cons                                                                |
 | --------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **pi-toggle-skills** (this) | Interactive TUI; directly modifies SKILL.md; no intermediate config; auto-reload; batch changes with undo | Requires `/reload`; doesn't scan package/settings/CLI skills        |
+| **pi-toggle-skills** (this) | Interactive TUI; directly modifies SKILL.md; no intermediate config; auto-reload; batch changes with undo | Changes require `/reload`; doesn't scan package/settings/CLI skills|
 | Manual SKILL.md editing     | No extension needed                                                                                       | Tedious; error-prone YAML editing; must remember frontmatter syntax |
 | Deleting SKILL.md files     | Effective                                                                                                 | Destructive; must restore to re-enable; can't toggle back easily    |
 

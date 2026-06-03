@@ -11,7 +11,7 @@
  * - Esc to cancel (discard in-memory toggles)
  *
  * Changes are collected in-memory and only written to disk on Ctrl+S.
- * After writing, pi is reloaded so the skill list in the system prompt updates.
+ * After writing, the user runs /reload so the skill list in the system prompt updates.
  */
 
 import {
