@@ -84,7 +84,7 @@ describe("formatSkillLine", () => {
     expect(formatSkillLine(skill)).toBe("hidden-skill [hidden] — A hidden one");
   });
 
-  it("truncates long descriptions to 80 chars", () => {
+  it("shows the full description without truncation", () => {
     const longDesc = "A".repeat(200);
     const skill: ToggleSkill = {
       name: "long-skill",
@@ -95,7 +95,7 @@ describe("formatSkillLine", () => {
     };
     const line = formatSkillLine(skill);
     const descPart = line.split(" — ")[1];
-    expect(descPart.length).toBe(80);
+    expect(descPart).toBe(longDesc);
   });
 });
 

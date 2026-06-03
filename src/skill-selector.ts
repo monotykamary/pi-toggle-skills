@@ -54,6 +54,7 @@ export class ToggleSkillSelectorComponent implements Component {
   private disabledMap: Map<string, boolean> = new Map();
 
   // UI state
+  private lastWidth = 80;
   private filteredItems: DisplayItem[] = [];
   private selectedIndex = 0;
   private maxVisible = 10;
@@ -108,6 +109,10 @@ export class ToggleSkillSelectorComponent implements Component {
   }
 
   render(width: number): string[] {
+    if (this.lastWidth !== width) {
+      this.lastWidth = width;
+      this.updateList();
+    }
     const lines: string[] = [];
 
     lines.push(...new DynamicBorder((s) => this.theme.fg("accent", s)).render(width));
@@ -316,15 +321,19 @@ export class ToggleSkillSelectorComponent implements Component {
       const selected = this.filteredItems[this.selectedIndex];
       this.listContainer.addChild(new Spacer(1));
       this.listContainer.addChild(
-        new Text(this.theme.fg("muted", `  Description: ${selected.description.slice(0, 120)}`), 0, 0),
-      );
-      this.listContainer.addChild(
         new Text(
-          this.theme.fg("dim", `  Path: ${selected.filePath}`),
+          this.theme.fg("dim", `  Source: ${selected.filePath}`),
           0,
           0,
         ),
       );
+      const descLines = this.wrapDescription(selected.description);
+      for (let i = 0; i < descLines.length; i++) {
+        const prefix = i === 0 ? "  Description: " : "               ";
+        this.listContainer.addChild(
+          new Text(this.theme.fg("muted", `${prefix}${descLines[i]}`), 0, 0),
+        );
+      }
     }
 
     this.footerText.setText(this.getFooterText());
@@ -356,6 +365,33 @@ export class ToggleSkillSelectorComponent implements Component {
     }
     this.recheckHasChanges();
     this.refresh();
+  }
+
+  /** Word-wrap a description string, fitting the terminal width. */
+  private wrapDescription(text: string): string[] {
+    const label = "  Description: ";
+    const indent = "               ";
+    const firstLineWidth = Math.max(20, this.lastWidth - label.length);
+    const contLineWidth = Math.max(20, this.lastWidth - indent.length);
+    const words = text.split(/\s+/).filter((w) => w.length > 0);
+    const lines: string[] = [];
+    let currentLine = "";
+
+    for (const word of words) {
+      const lineLen = currentLine.length === 0 ? 0 : currentLine.length + 1;
+      const limit = lines.length === 0 ? firstLineWidth : contLineWidth;
+      if (lineLen + word.length > limit && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = currentLine.length === 0 ? word : `${currentLine} ${word}`;
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push(currentLine);
+    }
+
+    return lines;
   }
 
   /** Check if any item's state differs from its original. */

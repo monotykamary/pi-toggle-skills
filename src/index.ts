@@ -48,7 +48,7 @@ export function formatSkillStatus(skill: ToggleSkill): string {
  */
 export function formatSkillLine(skill: ToggleSkill): string {
   const status = skill.disabled ? "hidden" : "visible";
-  return `${skill.name} [${status}] — ${skill.description.slice(0, 80)}`;
+  return `${skill.name} [${status}] — ${skill.description}`;
 }
 
 /**
