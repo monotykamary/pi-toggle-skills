@@ -68,8 +68,16 @@ When a skill has `disable-model-invocation: true`, pi excludes it from the syste
 
 ## Installation
 
+**With `pi install`** (recommended):
+
 ```bash
 pi install https://github.com/monotykamary/pi-toggle-skills
+```
+
+**With npm**:
+
+```bash
+npm install pi-toggle-skills
 ```
 
 Or in `~/.pi/agent/settings.json`:
