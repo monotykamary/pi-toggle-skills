@@ -1,12 +1,12 @@
 {
   "name": "pi-toggle-skills",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "pi-toggle-skills",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "license": "MIT",
       "dependencies": {
         "gray-matter": "^4.0.3"
@@ -3462,7 +3462,7 @@
       "license": "MIT"
     },
     "node_modules/is-extendable": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "resolved": "https://registry.npmjs.org/is-extendable/-/is-extendable-0.1.1.tgz",
       "integrity": "sha512-5BMULNob1vgFX6EjQw5izWDxrecWK9AM72rugNr0TFldMOi0fj6Jk+zeKIt0xGj4cEfQIJth4w3OKWOJ4f+AFw==",
       "license": "MIT",
