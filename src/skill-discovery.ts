@@ -15,6 +15,7 @@ import {
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import matter from "gray-matter";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
 
 // Skill directories to scan (in priority order, matching pi's discovery)
@@ -24,7 +25,7 @@ function getGlobalPiSkillDirs(): string[] {
 }
 
 function getGlobalAgentsSkillDirs(): string[] {
-  return [join(getAgentDir(), "..", "agents", "skills")];
+  return [join(homedir(), ".agents", "skills")];
 }
 
 function getProjectSkillDirs(cwd: string): string[] {
