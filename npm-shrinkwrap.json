@@ -1,12 +1,12 @@
 {
   "name": "pi-toggle-skills",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "pi-toggle-skills",
-      "version": "0.1.2",
+      "version": "0.1.4",
       "license": "MIT",
       "dependencies": {
         "gray-matter": "^4.0.3"
