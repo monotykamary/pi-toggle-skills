@@ -14,7 +14,7 @@ import {
 } from "./index.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import matter from "gray-matter";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
 
@@ -52,11 +52,14 @@ function getAllSkillDirs(cwd: string): SkillDir[] {
   for (const path of getProjectSkillDirs(cwd)) {
     dirs.push({ path, source: "project-pi" });
   }
-  // Deduplicate by path
+  // Deduplicate by resolved (real) path so that symlinked directories
+  // (e.g. ~/.agents/skills → ~/.pi/agent/skills) are not scanned twice.
   const seen = new Set<string>();
   return dirs.filter((d) => {
-    if (seen.has(d.path)) return false;
-    seen.add(d.path);
+    let resolved = d.path;
+    try { resolved = realpathSync(d.path); } catch { /* path doesn't exist yet */ }
+    if (seen.has(resolved)) return false;
+    seen.add(resolved);
     return true;
   });
 }
@@ -172,11 +175,18 @@ function loadSkillFromFile(filePath: string): ToggleSkill | null {
     // Skills without description are not loaded by pi — skip them
     if (!description || description.trim() === "") return null;
 
+    // Resolve symlinks so that the same physical SKILL.md reached via
+    // different alias paths (e.g. ~/.agents/skills/x vs ~/.pi/agent/skills/x)
+    // gets the same filePath and is correctly deduplicated.
+    let realFilePath = filePath;
+    try { realFilePath = realpathSync(filePath); } catch { /* keep as-is */ }
+    const realBaseDir = dirname(realFilePath);
+
     return {
       name,
       description,
-      filePath,
-      baseDir: skillDir,
+      filePath: realFilePath,
+      baseDir: realBaseDir,
       disabled: isDisabled(frontmatter),
     };
   } catch {

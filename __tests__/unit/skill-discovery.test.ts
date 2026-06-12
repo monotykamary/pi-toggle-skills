@@ -6,7 +6,7 @@ import {
   type SkillDir,
 } from "../../src/skill-discovery.js";
 import { type ToggleSkill, DISABLE_MODEL_INVOCATION_KEY } from "../../src/index.js";
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, symlinkSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -271,5 +271,82 @@ describe("applyChanges", () => {
     const changes = [{ filePath: skillPath, newDisabled: true }];
     const written = applyChanges(skills, changes);
     expect(written).toHaveLength(0);
+  });
+});
+
+// Symlink deduplication
+describe("symlink deduplication", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("does not count skills twice when skill dirs are symlinked", () => {
+    // Set up real skill directory at .pi/skills/test-skill/SKILL.md
+    const cwd = setupTestDir({
+      ".pi/skills/test-skill/SKILL.md": "---\nname: test-skill\ndescription: A test skill\n---\n\n# Body",
+    });
+
+    // Symlink .agents/skills → .pi/skills so both paths lead to the same files
+    const agentsSkillsDir = join(cwd, ".agents", "skills");
+    const piSkillsDir = join(cwd, ".pi", "skills");
+    mkdirSync(join(cwd, ".agents"), { recursive: true });
+    symlinkSync(piSkillsDir, agentsSkillsDir, "junction");
+
+    // Scan both directories
+    const skillDirs: SkillDir[] = [
+      { path: piSkillsDir, source: "project-pi" },
+      { path: agentsSkillsDir, source: "project-agents" },
+    ];
+
+    const skills = discoverSkills(cwd, { skillDirs });
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("test-skill");
+  });
+
+  it("resolves filePath to real path so dedup works across symlinks", () => {
+    const cwd = setupTestDir({
+      ".pi/skills/symlinked-skill/SKILL.md": "---\nname: symlinked-skill\ndescription: Real path\n---\n\n# Body",
+    });
+
+    // Symlink .agents/skills → .pi/skills
+    const agentsSkillsDir = join(cwd, ".agents", "skills");
+    const piSkillsDir = join(cwd, ".pi", "skills");
+    mkdirSync(join(cwd, ".agents"), { recursive: true });
+    symlinkSync(piSkillsDir, agentsSkillsDir, "junction");
+
+    // Scan only the symlinked directory
+    const skillDirs: SkillDir[] = [
+      { path: agentsSkillsDir, source: "project-agents" },
+    ];
+
+    const skills = discoverSkills(cwd, { skillDirs });
+    expect(skills).toHaveLength(1);
+    // filePath should be the real path, not the symlinked path
+    expect(skills[0].filePath).not.toContain(".agents");
+    expect(skills[0].filePath).toContain(".pi");
+  });
+
+  it("deduplicates by real path when both symlinked and real dirs are scanned", () => {
+    const cwd = setupTestDir({
+      ".pi/skills/a/SKILL.md": "---\nname: skill-a\ndescription: Skill A\n---\n\n# A",
+      ".pi/skills/b/SKILL.md": "---\nname: skill-b\ndescription: Skill B\n---\n\n# B",
+    });
+
+    // Symlink .agents/skills → .pi/skills
+    const agentsSkillsDir = join(cwd, ".agents", "skills");
+    const piSkillsDir = join(cwd, ".pi", "skills");
+    mkdirSync(join(cwd, ".agents"), { recursive: true });
+    symlinkSync(piSkillsDir, agentsSkillsDir, "junction");
+
+    const skillDirs: SkillDir[] = [
+      { path: piSkillsDir, source: "project-pi" },
+      { path: agentsSkillsDir, source: "project-agents" },
+    ];
+
+    const skills = discoverSkills(cwd, { skillDirs });
+    // Should find exactly 2 skills, not 4
+    expect(skills).toHaveLength(2);
+    const names = skills.map((s) => s.name).sort();
+    expect(names).toEqual(["skill-a", "skill-b"]);
   });
 });

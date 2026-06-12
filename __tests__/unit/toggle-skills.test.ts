@@ -138,6 +138,16 @@ describe("deduplicateSkills", () => {
     const result = deduplicateSkills(skills);
     expect(result[0].name).toBe("first");
   });
+
+  it("deduplicates skills that share the same real filePath via symlinks", () => {
+    // When loadSkillFromFile resolves symlinks, both entries will have
+    // the same filePath (the real path), so dedup works naturally.
+    const skills: ToggleSkill[] = [
+      { ...base, filePath: "/real/path/SKILL.md" },
+      { ...base, filePath: "/real/path/SKILL.md", name: "same-real-path" },
+    ];
+    expect(deduplicateSkills(skills)).toHaveLength(1);
+  });
 });
 
 // computeChanges
