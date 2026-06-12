@@ -297,7 +297,7 @@ export class ToggleSkillSelectorComponent implements Component {
         ? this.theme.fg("accent", item.name)
         : item.name;
       const status = item.disabled
-        ? this.theme.fg("warning", " ✗")
+        ? this.theme.fg("dim", " ✗")
         : this.theme.fg("success", " ✓");
 
       this.listContainer.addChild(
