@@ -1,7 +1,7 @@
 {
   "name": "pi-toggle-skills",
   "version": "0.1.5",
-  "description": "Toggle skill visibility in pi's system prompt \u2014 flip disable-model-invocation on skills via an interactive TUI",
+  "description": "Toggle skill visibility in pi's system prompt — flip disable-model-invocation on skills via an interactive TUI",
   "type": "module",
   "author": "Tom X Nguyen",
   "license": "MIT",
@@ -52,5 +52,6 @@
       "./toggle-skills.ts"
     ]
   },
-  "peerDependencies": {}
+  "peerDependencies": {},
+  "packageManager": "pnpm@11.6.0"
 }
