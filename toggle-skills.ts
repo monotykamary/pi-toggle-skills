@@ -30,18 +30,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     currentSkills = discoverSkills(ctx.cwd);
-
-    if (currentSkills.length > 0) {
-      const hidden = currentSkills.filter((s) => s.disabled).length;
-      const visible = currentSkills.length - hidden;
-
-      if (ctx.hasUI) {
-        ctx.ui.notify(
-          `pi-toggle-skills: ${visible} visible, ${hidden} hidden skill(s) — use /toggle-skills to manage`,
-          "info",
-        );
-      }
-    }
   });
 
   pi.registerCommand("toggle-skills", {
