@@ -180,6 +180,34 @@ async function showToggleSelector(
     return;
   }
 
+  if (ctx.mode !== "tui") {
+    if (!ctx.hasUI) {
+      ctx.ui.notify("/toggle-skills requires a UI (TUI or GUI).", "error");
+      return;
+    }
+    const items = currentSkills.map((s) => `${s.name}: ${s.disabled ? "disabled" : "enabled"}`);
+    const pick = await ctx.ui.select("Toggle skill \u2014 pick a skill to flip", items);
+    if (pick === undefined) return;
+    const idx = items.indexOf(pick);
+    if (idx < 0) return;
+    const skill = currentSkills[idx];
+    if (!skill) return;
+    const newDisabled = !skill.disabled;
+    const written = applyChanges(currentSkills, [{ filePath: skill.filePath, newDisabled }]);
+    if (written.length === 0) {
+      ctx.ui.notify("No files were written. Check file permissions.", "warning");
+      return;
+    }
+    setSkills(
+      currentSkills.map((s) => (s.filePath === skill.filePath ? { ...s, disabled: newDisabled } : s)),
+    );
+    ctx.ui.notify(
+      `Skill ${skill.name} ${newDisabled ? "disabled" : "enabled"}. /reload to take effect. Run /toggle-skills again for more.`,
+      "info",
+    );
+    return;
+  }
+
   const result = await ctx.ui.custom<ToggleSkillSelectorResult>(
     (tui, theme, _kb, done) => {
       const selector = new ToggleSkillSelectorComponent(
