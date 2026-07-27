@@ -24,6 +24,8 @@ import {
   matchesKey,
   Spacer,
   Text,
+  truncateToWidth,
+  wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, keyText } from "@earendil-works/pi-coding-agent";
@@ -117,11 +119,20 @@ export class ToggleSkillSelectorComponent implements Component {
 
     lines.push(...new DynamicBorder((s) => this.theme.fg("accent", s)).render(width));
     lines.push("");
-    lines.push(this.theme.fg("accent", this.theme.bold("Toggle Skill Visibility")));
     lines.push(
-      this.theme.fg(
-        "muted",
-        `Toggle disable-model-invocation on skills. Hidden skills won't appear in the system prompt.`,
+      truncateToWidth(
+        this.theme.fg("accent", this.theme.bold("Toggle Skill Visibility")),
+        width,
+        "",
+      ),
+    );
+    lines.push(
+      ...wrapTextWithAnsi(
+        this.theme.fg(
+          "muted",
+          `Toggle disable-model-invocation on skills. Hidden skills won't appear in the system prompt.`,
+        ),
+        width,
       ),
     );
     lines.push("");
@@ -132,7 +143,7 @@ export class ToggleSkillSelectorComponent implements Component {
     lines.push(...this.footerText.render(width));
     lines.push(...new DynamicBorder((s) => this.theme.fg("accent", s)).render(width));
 
-    return lines;
+    return lines.map((line) => truncateToWidth(line, width, ""));
   }
 
   handleInput(data: string): void {
