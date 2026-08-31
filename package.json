@@ -51,6 +51,5 @@
     "extensions": [
       "./toggle-skills.ts"
     ]
-  },
-  "packageManager": "pnpm@11.20.0"
+  }
 }
