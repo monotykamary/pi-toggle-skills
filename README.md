@@ -198,3 +198,9 @@ npm run lint:dead # Dead code detection (knip)
 ## License
 
 MIT
+
+## Pi 0.99 compatibility (0.1.19)
+
+Verified native 0.99 extension loading and skill-selector rendering. Custom-screen wrappers now forward focus to their Input, preserving IME cursor positioning across resize and invalidation.
+
+Tested with Pi 0.99.0. Host-provided Pi packages are wildcard peers, not bundled dependencies; development uses exact 0.99.0 versions.

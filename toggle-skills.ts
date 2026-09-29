@@ -217,6 +217,8 @@ async function showToggleSelector(
       );
 
       return {
+        get focused() { return selector.focused; },
+        set focused(value: boolean) { selector.focused = value; },
         render(width: number) {
           return selector.render(width);
         },
