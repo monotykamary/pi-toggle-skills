@@ -5,10 +5,10 @@ import { CURSOR_MARKER, visibleWidth } from "@earendil-works/pi-tui";
 import extension from "../../toggle-skills.js";
 
 it("forwards custom-screen focus to the native Input across resize and invalidation", async () => {
-  const root = resolve(".tmp/pi99-focus");
-  const skill = root + "/.pi/skills/pi99/SKILL.md";
-  mkdirSync(root + "/.pi/skills/pi99", { recursive: true });
-  writeFileSync(skill, "---\nname: pi99\ndescription: Unicode 界 skill\n---\nInstructions\n");
+  const root = resolve(".tmp/pi1-focus");
+  const skill = root + "/.pi/skills/pi1/SKILL.md";
+  mkdirSync(root + "/.pi/skills/pi1", { recursive: true });
+  writeFileSync(skill, "---\nname: pi1\ndescription: Unicode 界 skill\n---\nInstructions\n");
   vi.stubEnv("PI_CODING_AGENT_DIR", root + "/agent");
   const handlers = new Map<string, any>(); let command: any;
   const theme = { fg: (_: string, s: string) => s, bold: (s: string) => s };

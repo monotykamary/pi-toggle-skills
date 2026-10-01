@@ -199,6 +199,13 @@ npm run lint:dead # Dead code detection (knip)
 
 MIT
 
+## Pi 1.0 compatibility (0.1.20)
+
+Tested against Pi **1.0.0** with exact SDK development pins and wildcard host peers.
+Real-host command registration and skill frontmatter toggling are verified, alongside selector IME/width tests.
+
+Run `bun run test:host` for the offline real-host regression. Set `PI1_HOST_PACKAGE` to an installed Pi package directory and `PI1_HOST_ENTRY=bundle` to test its bundled CLI runtime.
+
 ## Pi 0.99 compatibility (0.1.19)
 
 Verified native 0.99 extension loading and skill-selector rendering. Custom-screen wrappers now forward focus to their Input, preserving IME cursor positioning across resize and invalidation.
