@@ -3,7 +3,7 @@
  *
  * Scans the standard pi skill directories to find SKILL.md files,
  * parses their YAML frontmatter, and provides safe round-trip editing
- * via gray-matter.
+ * without reformatting Markdown or unrelated YAML.
  */
 
 import {
@@ -14,7 +14,12 @@ import {
 } from "./index.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import matter from "gray-matter";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  closeSync, existsSync, fchmodSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync,
+  realpathSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync,
+} from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
 
@@ -202,29 +207,99 @@ export function parseFrontmatter(content: string): { data: Record<string, unknow
   return { data: parsed.data as Record<string, unknown>, content: parsed.content };
 }
 
-/**
- * Toggle disable-model-invocation in a SKILL.md file.
- *
- * When disabling: sets `disable-model-invocation: true`
- * When enabling: removes the key entirely (false is the default)
- *
- * Returns true if the file was written, false on error.
- */
-export function toggleSkillInvocation(filePath: string, disabled: boolean): boolean {
+type FileSnapshot = ReturnType<typeof getSkillSnapshot>;
+
+function getSkillSnapshot(path: string) {
+  const info = lstatSync(path, { bigint: true });
+  if (!info.isFile()) throw new Error("Not a regular skill file");
+  return info;
+}
+
+function unchanged(before: FileSnapshot, after: FileSnapshot): boolean {
+  return before.dev === after.dev && before.ino === after.ino && before.mode === after.mode &&
+    before.size === after.size && before.mtimeNs === after.mtimeNs && before.ctimeNs === after.ctimeNs;
+}
+
+/** Edit only the flag's line, preserving body, comments, newline style and other YAML. */
+function editInvocationFlag(raw: string, disabled: boolean, expectedDisabled?: boolean): string | undefined {
+  const open = /^\uFEFF?---[ \t]*(\r?\n)/.exec(raw);
+  if (!open) return;
+  const yamlAndBody = raw.slice(open[0].length);
+  const close = /^---[ \t]*(?:\r?\n|$)/m.exec(yamlAndBody);
+  if (!close) return;
+  const { data, content } = parseFrontmatter(raw);
+  if (!data || typeof data !== "object" || Array.isArray(data)) return;
+  if (expectedDisabled !== undefined && expectedDisabled !== isDisabled(data)) return;
+
+  const key = DISABLE_MODEL_INVOCATION_KEY;
+  const yaml = yamlAndBody.slice(0, close.index);
+  const eol = open[1];
+  let nextYaml: string;
+  if (Object.hasOwn(data, key)) {
+    // Refuse force-reformatting an unusual representation (flow mappings,
+    // aliases, multiline values, etc.). The semantic check below also rejects
+    // matches outside the actual top-level mapping.
+    const field = new RegExp(`^((?:${key}|'${key}'|"${key}")[ \\t]*:[ \\t]*)(?:true|false|null|~)?([ \\t]*)(#[^\\r\\n]*)?(\\r?\\n)`, "m").exec(yaml);
+    if (!field) return;
+    const replacement = disabled
+      ? `${field[1]}true${field[2] || (field[3] ? " " : "")}${field[3] ?? ""}${field[4]}`
+      : field[3] ? `${field[3]}${field[4]}` : "";
+    nextYaml = yaml.slice(0, field.index) + replacement + yaml.slice(field.index + field[0].length);
+  } else {
+    if (!disabled) return;
+    nextYaml = `${yaml}${key}: true${eol}`;
+  }
+
+  const output = open[0] + nextYaml + yamlAndBody.slice(close.index);
+  const wanted = { ...data };
+  if (disabled) wanted[key] = true;
+  else delete wanted[key];
+  const checked = parseFrontmatter(output);
+  if (checked.content !== content || !isDeepStrictEqual(checked.data, wanted) || raw === output) return;
+  return output;
+}
+
+/** Toggle a skill's latest file, or refuse if the visibility state is stale or the file is busy. */
+export function toggleSkillInvocation(filePath: string, disabled: boolean, expectedDisabled?: boolean): boolean {
   try {
-    const rawContent = readFileSync(filePath, "utf8");
-    const parsed = matter(rawContent);
-
-    if (disabled) {
-      parsed.data[DISABLE_MODEL_INVOCATION_KEY] = true;
-    } else {
-      // Remove the key when enabling (false is the default / absent state)
-      delete parsed.data[DISABLE_MODEL_INVOCATION_KEY];
+    const target = realpathSync(filePath);
+    if (basename(target).toLowerCase() === "settings.json") return false;
+    const lock = `${target}.lock`;
+    // Refuse a competing writer immediately. Never steal on age; after a
+    // crash a leftover lock requires manual removal.
+    mkdirSync(lock, { mode: 0o700 });
+    try {
+      const before = getSkillSnapshot(target);
+      const bytes = readFileSync(target);
+      const raw = bytes.toString("utf8");
+      if (!Buffer.from(raw).equals(bytes)) return false;
+      const output = editInvocationFlag(raw, disabled, expectedDisabled);
+      if (output === undefined) return false;
+      const temporary = join(dirname(target), `.toggle-skills-${randomUUID()}.tmp`);
+      const fd = openSync(temporary, "wx", 0o600);
+      let published = false;
+      try {
+        try {
+          writeFileSync(fd, output, "utf8");
+          fchmodSync(fd, Number(before.mode & 0o7777n));
+        } finally {
+          closeSync(fd);
+        }
+        // Editors need not honor the lock. Compare the bytes too: a same-size
+        // edit can occur within one filesystem timestamp tick.
+        if (realpathSync(filePath) !== target || !unchanged(before, getSkillSnapshot(target)) ||
+          !readFileSync(target).equals(bytes) || !unchanged(before, getSkillSnapshot(target))) return false;
+        renameSync(temporary, target);
+        published = true;
+        return true;
+      } finally {
+        if (!published) {
+          try { unlinkSync(temporary); } catch { /* best-effort cleanup */ }
+        }
+      }
+    } finally {
+      rmdirSync(lock);
     }
-
-    const output = matter.stringify(parsed.content, parsed.data);
-    writeFileSync(filePath, output, "utf8");
-    return true;
   } catch {
     return false;
   }
@@ -248,7 +323,7 @@ export function applyChanges(
     const skill = skillsByPath.get(change.filePath);
     // Only write if the target state differs from what we last read
     if (skill && skill.disabled !== change.newDisabled) {
-      if (toggleSkillInvocation(change.filePath, change.newDisabled)) {
+      if (toggleSkillInvocation(change.filePath, change.newDisabled, skill.disabled)) {
         written.push(change.filePath);
       }
     }

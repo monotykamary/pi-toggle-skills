@@ -10,7 +10,7 @@ it("forwards custom-screen focus to the native Input across resize and invalidat
   mkdirSync(root + "/.pi/skills/pi1", { recursive: true });
   writeFileSync(skill, "---\nname: pi1\ndescription: Unicode 界 skill\n---\nInstructions\n");
   vi.stubEnv("PI_CODING_AGENT_DIR", root + "/agent");
-  const handlers = new Map<string, any>(); let command: any;
+  let command: any;
   const theme = { fg: (_: string, s: string) => s, bold: (s: string) => s };
   const ctx = { cwd: root, mode: "tui", ui: { notify() {}, custom: async (factory: any) => {
     const component = factory({ requestRender() {} }, theme, {}, () => {});
@@ -24,8 +24,7 @@ it("forwards custom-screen focus to the native Input across resize and invalidat
     return { cancelled: true };
   } } };
   try {
-    extension({ on: (n: string, f: any) => handlers.set(n, f), registerCommand: (_: string, c: any) => { command = c; } } as any);
-    await handlers.get("session_start")({}, ctx);
+    extension({ registerCommand: (_: string, c: any) => { command = c; } } as any);
     await command.handler("", ctx);
   } finally { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); }
 });

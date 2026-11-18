@@ -26,12 +26,6 @@ import {
 import { ToggleSkillSelectorComponent, type ToggleSkillSelectorResult } from "./src/skill-selector.js";
 
 export default function (pi: ExtensionAPI) {
-  let currentSkills: ToggleSkill[] = [];
-
-  pi.on("session_start", async (_event, ctx) => {
-    currentSkills = discoverSkills(ctx.cwd);
-  });
-
   pi.registerCommand("toggle-skills", {
     description: TOGGLE_COMMAND_DESCRIPTION,
     getArgumentCompletions(prefix: string) {
@@ -40,9 +34,7 @@ export default function (pi: ExtensionAPI) {
       return matches.length > 0 ? matches.map((s) => ({ value: s, label: s })) : null;
     },
     handler: async (args, ctx) => {
-      await handleToggleCommand(ctx, args.trim(), currentSkills, (skills) => {
-        currentSkills = skills;
-      });
+      await handleToggleCommand(ctx, args.trim(), discoverSkills(ctx.cwd));
     },
   });
 }
@@ -51,7 +43,6 @@ async function handleToggleCommand(
   ctx: ExtensionCommandContext,
   args: string,
   currentSkills: ToggleSkill[],
-  setSkills: (skills: ToggleSkill[]) => void,
 ): Promise<void> {
   const parts = args.split(/\s+/);
   const subcommand = parts[0]?.toLowerCase() ?? "";
@@ -59,7 +50,7 @@ async function handleToggleCommand(
 
   // /toggle-skills — open interactive TUI selector (default)
   if (!subcommand) {
-    await showToggleSelector(ctx, currentSkills, setSkills);
+    await showToggleSelector(ctx, currentSkills);
     return;
   }
 
@@ -96,14 +87,13 @@ async function handleToggleCommand(
       return;
     }
 
-    if (toggleSkillInvocation(skill.filePath, true)) {
-      skill.disabled = true;
+    if (toggleSkillInvocation(skill.filePath, true, skill.disabled)) {
       ctx.ui.notify(
         `Disabled: "${skill.name}" — hidden from system prompt. Run /reload to apply.`,
         "info",
       );
     } else {
-      ctx.ui.notify(`Failed to toggle skill "${skill.name}". Check file permissions.`, "error");
+      ctx.ui.notify(`Failed to toggle skill "${skill.name}". The file may have changed, be locked, or be unwritable. Reopen /toggle-skills and try again.`, "error");
     }
     return;
   }
@@ -129,14 +119,13 @@ async function handleToggleCommand(
       return;
     }
 
-    if (toggleSkillInvocation(skill.filePath, false)) {
-      skill.disabled = false;
+    if (toggleSkillInvocation(skill.filePath, false, skill.disabled)) {
       ctx.ui.notify(
         `Enabled: "${skill.name}" — visible in system prompt. Run /reload to apply.`,
         "info",
       );
     } else {
-      ctx.ui.notify(`Failed to toggle skill "${skill.name}". Check file permissions.`, "error");
+      ctx.ui.notify(`Failed to toggle skill "${skill.name}". The file may have changed, be locked, or be unwritable. Reopen /toggle-skills and try again.`, "error");
     }
     return;
   }
@@ -173,7 +162,6 @@ async function handleToggleCommand(
 async function showToggleSelector(
   ctx: ExtensionCommandContext,
   currentSkills: ToggleSkill[],
-  setSkills: (skills: ToggleSkill[]) => void,
 ): Promise<void> {
   if (currentSkills.length === 0) {
     ctx.ui.notify("No skills found. Add skills to ~/.pi/agent/skills/ or .pi/skills/ first.", "warning");
@@ -195,12 +183,9 @@ async function showToggleSelector(
     const newDisabled = !skill.disabled;
     const written = applyChanges(currentSkills, [{ filePath: skill.filePath, newDisabled }]);
     if (written.length === 0) {
-      ctx.ui.notify("No files were written. Check file permissions.", "warning");
+      ctx.ui.notify("No files were written. The file may have changed, be locked, or be unwritable. Reopen /toggle-skills and try again.", "warning");
       return;
     }
-    setSkills(
-      currentSkills.map((s) => (s.filePath === skill.filePath ? { ...s, disabled: newDisabled } : s)),
-    );
     ctx.ui.notify(
       `Skill ${skill.name} ${newDisabled ? "disabled" : "enabled"}. /reload to take effect. Run /toggle-skills again for more.`,
       "info",
@@ -248,23 +233,24 @@ async function showToggleSelector(
   // Write changes to disk
   const written = applyChanges(currentSkills, changes);
   if (written.length === 0) {
-    ctx.ui.notify("No files were written. Check file permissions.", "warning");
+    ctx.ui.notify("No files were written. The file may have changed, be locked, or be unwritable. Reopen /toggle-skills and try again.", "warning");
     return;
   }
 
-  setSkills(result.skills);
-
-  // Summarize what changed
-  const disabled = changes.filter((c) => c.newDisabled).length;
-  const enabled = changes.length - disabled;
+  // Report actual writes: one busy or stale file need not block the others.
+  const writtenPaths = new Set(written);
+  const disabled = changes.filter((c) => writtenPaths.has(c.filePath) && c.newDisabled).length;
+  const enabled = written.length - disabled;
+  const skipped = changes.length - written.length;
   const parts: string[] = [];
   if (enabled > 0) parts.push(`${enabled} enabled`);
   if (disabled > 0) parts.push(`${disabled} disabled`);
+  if (skipped > 0) parts.push(`${skipped} not written; reopen the picker to retry`);
   const summary = parts.join(", ");
 
   ctx.ui.notify(
     `Skills updated: ${summary}. Run /reload to apply.`,
-    "info",
+    skipped > 0 ? "warning" : "info",
   );
 }
 

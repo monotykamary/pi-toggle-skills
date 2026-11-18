@@ -6,9 +6,25 @@ import {
   type SkillDir,
 } from "../../src/skill-discovery.js";
 import { type ToggleSkill, DISABLE_MODEL_INVOCATION_KEY } from "../../src/index.js";
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, symlinkSync, realpathSync } from "node:fs";
+import {
+  chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync,
+  rmdirSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { vi } from "vitest";
+
+const publication = vi.hoisted(() => ({ beforeRename: undefined as (() => void) | undefined }));
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...fs,
+    fchmodSync(fd: number, mode: number) {
+      fs.fchmodSync(fd, mode);
+      publication.beforeRename?.();
+    },
+  };
+});
 
 // Test fixture helpers
 
@@ -136,6 +152,75 @@ describe("toggleSkillInvocation", () => {
     expect(content.trim()).toBe(body);
   });
 
+  it("preserves CRLF, inline and standalone comments, and the exact Markdown body", () => {
+    const path = join(testDir, "SKILL.md");
+    const original = "---\r\nname: 'example'  # keep this\r\ndescription: A test\r\n" +
+      "# standalone\r\ndisable-model-invocation: false  # flag comment\r\n---\r\n\r\n# Body\r\n";
+    writeFileSync(path, original);
+    expect(toggleSkillInvocation(path, true)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(original.replace("false", "true"));
+    expect(toggleSkillInvocation(path, false)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(original.replace("disable-model-invocation: false  ", ""));
+  });
+
+  it("follows a symlink, preserves the target mode, and never replaces Pi settings", () => {
+    const path = join(testDir, "SKILL.md");
+    const target = join(testDir, "skill.md");
+    const original = "---\nname: example\ndescription: Example\n---\n# Body\n";
+    writeFileSync(target, original);
+    chmodSync(target, 0o640);
+    symlinkSync(target, path);
+    expect(toggleSkillInvocation(path, true)).toBe(true);
+    expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    expect(statSync(target).mode & 0o777).toBe(0o640);
+    expect(readFileSync(target, "utf8")).toBe(original.replace("---\n# Body", "disable-model-invocation: true\n---\n# Body"));
+
+    unlinkSync(path);
+    const piSettings = join(testDir, "settings.json");
+    writeFileSync(piSettings, original);
+    symlinkSync(piSettings, path);
+    expect(toggleSkillInvocation(path, true)).toBe(false);
+    expect(readFileSync(piSettings, "utf8")).toBe(original);
+  });
+
+  it("keeps malformed frontmatter and a competing writer's lock untouched", () => {
+    const path = join(testDir, "SKILL.md");
+    for (const malformed of ["---\nname: [\n---\n# Body", "---\nname: no-closing-delimiter\n"]) {
+      writeFileSync(path, malformed);
+      expect(toggleSkillInvocation(path, true)).toBe(false);
+      expect(readFileSync(path, "utf8")).toBe(malformed);
+      expect(readdirSync(testDir)).toEqual(["SKILL.md"]);
+    }
+    const original = "---\nname: example\ndescription: Example\n---\n# Body\n";
+    writeFileSync(path, original);
+    mkdirSync(path + ".lock");
+    const oldDate = new Date(0);
+    utimesSync(path + ".lock", oldDate, oldDate);
+    expect(toggleSkillInvocation(path, true)).toBe(false);
+    expect(readFileSync(path, "utf8")).toBe(original);
+    expect(readdirSync(testDir).sort()).toEqual(["SKILL.md", "SKILL.md.lock"]);
+    rmdirSync(path + ".lock");
+    expect(toggleSkillInvocation(path, true)).toBe(true);
+  });
+
+  it("does not replace an editor save made while the atomic replacement is staged", () => {
+    const path = join(testDir, "SKILL.md");
+    const original = "---\nname: example\ndescription: Example\n---\n# Before\n";
+    const edited = original.replace("# Before", "# Edited");
+    const otherTemp = join(testDir, ".toggle-skills-someone-else.tmp");
+    writeFileSync(path, original);
+    writeFileSync(otherTemp, "other writer's temp");
+    publication.beforeRename = () => writeFileSync(path, edited);
+    try {
+      expect(toggleSkillInvocation(path, true)).toBe(false);
+      expect(readFileSync(path, "utf8")).toBe(edited);
+      expect(readdirSync(testDir).sort()).toEqual([".toggle-skills-someone-else.tmp", "SKILL.md"]);
+      expect(readFileSync(otherTemp, "utf8")).toBe("other writer's temp");
+    } finally {
+      publication.beforeRename = undefined;
+    }
+  });
+
   it("returns false for non-existent file", () => {
     const result = toggleSkillInvocation("/nonexistent/path/SKILL.md", true);
     expect(result).toBe(false);
@@ -257,6 +342,23 @@ describe("applyChanges", () => {
     const { data: data2 } = parseFrontmatter(readFileSync(skill2Path, "utf8"));
     expect(data1[DISABLE_MODEL_INVOCATION_KEY]).toBe(true);
     expect(data2[DISABLE_MODEL_INVOCATION_KEY]).toBeUndefined();
+  });
+
+  it("merges body/frontmatter edits made while the picker was open, or refuses a stale visibility state", () => {
+    const path = join(testDir, "SKILL.md");
+    writeFileSync(path, "---\nname: example\ndescription: Before\n---\n# Old body\n");
+    const skills = discoverSkills(testDir, { skillDirs: [{ path: testDir, source: "project-pi" }] });
+    expect(skills).toHaveLength(1);
+    const changes = [{ filePath: skills[0].filePath, newDisabled: true }];
+    const latest = "---\nname: example\ndescription: 'Edited' # keep\n---\n# Edited body\n";
+    writeFileSync(path, latest);
+    expect(applyChanges(skills, changes)).toEqual([skills[0].filePath]);
+    const expected = latest.replace("---\n# Edited body", "disable-model-invocation: true\n---\n# Edited body");
+    expect(readFileSync(path, "utf8")).toBe(expected);
+    const otherWriter = expected.replace("true", "true # other writer");
+    writeFileSync(path, otherWriter);
+    expect(applyChanges(skills, changes)).toEqual([]);
+    expect(readFileSync(path, "utf8")).toBe(otherWriter);
   });
 
   it("skips changes where the state already matches", () => {

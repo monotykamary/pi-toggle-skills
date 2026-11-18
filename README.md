@@ -119,7 +119,7 @@ Session starts
 /toggle-skills disable/enable:
   → Toggles disable-model-invocation in SKILL.md frontmatter
   → Adds the key when disabling, removes it when enabling (false is the default)
-  → Uses gray-matter for safe YAML round-tripping
+  → Validates with gray-matter and publishes the flag change atomically
   → User must /reload for changes to take effect
 ```
 
@@ -145,6 +145,8 @@ name: my-skill
 description: Things done
 ---
 ```
+
+The toggle preserves the body and the rest of the frontmatter. It skips a busy file, a visibility state changed since the picker opened, or YAML it cannot edit without reformatting. If a crash leaves an empty `SKILL.md.lock` directory, remove it only after confirming no process is editing that skill through this extension.
 
 ### Skill Directories Scanned
 
